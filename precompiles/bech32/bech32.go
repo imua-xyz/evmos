@@ -57,11 +57,17 @@ func (Precompile) Address() common.Address {
 
 // RequiredGas calculates the contract gas use.
 func (p Precompile) RequiredGas(_ []byte) uint64 {
+	// constant gas cost for the precompile
 	return p.baseGas
 }
 
 // Run executes the precompiled contract bech32 methods defined in the ABI.
 func (p Precompile) Run(_ *vm.EVM, contract *vm.Contract, _ bool) (bz []byte, err error) {
+	if len(contract.Input) < 4 {
+		// no receive or fallback method, so this is not a valid call
+		return nil, fmt.Errorf(cmn.ErrInvalidNumberOfArgs, 4, len(contract.Input))
+	}
+
 	methodID := contract.Input[:4]
 	// NOTE: this function iterates over the method map and returns
 	// the method with the given ID
@@ -70,6 +76,7 @@ func (p Precompile) Run(_ *vm.EVM, contract *vm.Contract, _ bool) (bz []byte, er
 		return nil, err
 	}
 
+	// at length 4, this will not panic
 	argsBz := contract.Input[4:]
 	args, err := method.Inputs.Unpack(argsBz)
 	if err != nil {

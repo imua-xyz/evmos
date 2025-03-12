@@ -88,6 +88,7 @@ func (p Precompile) Address() common.Address {
 func (p Precompile) RequiredGas(input []byte) uint64 {
 	// Validate input length
 	if len(input) < 4 {
+		// no receive or fallback method, so this is not a valid call
 		return 0
 	}
 
@@ -152,8 +153,11 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 		return nil, vm.ErrOutOfGas
 	}
 
-	if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
-		return nil, err
+	if p.IsTransaction(method.Name) {
+		// only add a journal entry if it's not a read-only call
+		if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
+			return nil, err
+		}
 	}
 
 	return bz, nil

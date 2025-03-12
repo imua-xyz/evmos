@@ -37,6 +37,11 @@ type Precompile struct {
 
 // RequiredGas returns the required bare minimum gas to execute the precompile.
 func (p Precompile) RequiredGas(input []byte) uint64 {
+	if len(input) < 4 {
+		// no receive or fallback method, so this is not a valid call
+		return 0
+	}
+
 	methodID := input[:4]
 
 	method, err := p.MethodById(methodID)
@@ -127,8 +132,11 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 		return nil, vm.ErrOutOfGas
 	}
 
-	if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
-		return nil, err
+	if p.IsTransaction(method.Name) {
+		// only add a journal entry if it's not a read-only call
+		if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
+			return nil, err
+		}
 	}
 
 	return bz, nil

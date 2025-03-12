@@ -76,6 +76,7 @@ func NewPrecompile(
 			TransientKVGasConfig: storetypes.TransientGasConfig(),
 			ApprovalExpiration:   cmn.DefaultExpirationDuration,
 			AuthzKeeper:          authzKeeper,
+			Addr:                 common.HexToAddress(OsmosisOutpostAddress),
 		},
 		wevmosAddress:    wevmosAddress,
 		timeoutHeight:    clienttypes.NewHeight(ics20.DefaultTimeoutHeight, ics20.DefaultTimeoutHeight),
@@ -92,11 +93,6 @@ func NewPrecompile(
 // for the Osmosis outpost precompile.
 func LoadABI() (abi.ABI, error) {
 	return cmn.LoadABI(f, "abi.json")
-}
-
-// Address defines the address of the Osmosis outpost precompile contract.
-func (Precompile) Address() common.Address {
-	return common.HexToAddress(OsmosisOutpostAddress)
 }
 
 // IsStateful returns true since the precompile contract has access to the

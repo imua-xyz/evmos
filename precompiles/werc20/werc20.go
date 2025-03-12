@@ -26,6 +26,11 @@ const abiPath = "abi.json"
 //go:embed abi.json
 var f embed.FS
 
+const (
+	// PrecompileAddress defines the address of the WERC20 precompile contract.
+	PrecompileAddress = "0x0000000000000000000000000000000000000805"
+)
+
 var _ vm.PrecompiledContract = &Precompile{}
 
 // Precompile defines the precompiled contract for WERC20.
@@ -60,15 +65,11 @@ func NewPrecompile(
 
 	// use the IWERC20 ABI
 	erc20Precompile.Precompile.ABI = newABI
+	erc20Precompile.Precompile.Addr = common.HexToAddress(PrecompileAddress)
 
 	return &Precompile{
 		Precompile: erc20Precompile,
 	}, nil
-}
-
-// Address defines the address of the ERC20 precompile contract.
-func (p Precompile) Address() common.Address {
-	return p.Precompile.Address()
 }
 
 // RequiredGas calculates the contract gas use.

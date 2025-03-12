@@ -21,6 +21,11 @@ import (
 
 var _ vm.PrecompiledContract = &Precompile{}
 
+const (
+	// PrecompileAddress defines the address of the distribution precompile contract.
+	PrecompileAddress = "0x0000000000000000000000000000000000000801"
+)
+
 // Embed abi json file to the executable binary. Needed when importing as dependency.
 //
 //go:embed abi.json
@@ -57,16 +62,11 @@ func NewPrecompile(
 			KvGasConfig:          storetypes.KVGasConfig(),
 			TransientKVGasConfig: storetypes.TransientGasConfig(),
 			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
+			Addr:                 common.HexToAddress(PrecompileAddress),
 		},
 		stakingKeeper:      stakingKeeper,
 		distributionKeeper: distributionKeeper,
 	}, nil
-}
-
-// Address defines the address of the distribution compile contract.
-// address: 0x0000000000000000000000000000000000000801
-func (p Precompile) Address() common.Address {
-	return common.HexToAddress("0x0000000000000000000000000000000000000801")
 }
 
 // RequiredGas calculates the precompiled contract's base gas rate.

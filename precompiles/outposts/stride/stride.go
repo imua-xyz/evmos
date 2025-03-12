@@ -23,6 +23,11 @@ import (
 
 var _ vm.PrecompiledContract = &Precompile{}
 
+const (
+	// PrecompileAddress defines the address of the Stride outpost precompile contract.
+	PrecompileAddress = "0x0000000000000000000000000000000000000900"
+)
+
 // Embed abi json file to the executable binary. Needed when importing as dependency.
 //
 //go:embed abi.json
@@ -58,6 +63,7 @@ func NewPrecompile(
 			KvGasConfig:          storetypes.KVGasConfig(),
 			TransientKVGasConfig: storetypes.TransientGasConfig(),
 			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
+			Addr:                 common.HexToAddress(PrecompileAddress),
 		},
 		wevmosAddress:  wevmosAddress,
 		timeoutHeight:  clienttypes.NewHeight(ics20.DefaultTimeoutHeight, ics20.DefaultTimeoutHeight),
@@ -71,11 +77,6 @@ func NewPrecompile(
 // for the Stride outpost precompile.
 func LoadABI() (abi.ABI, error) {
 	return cmn.LoadABI(f, "abi.json")
-}
-
-// Address defines the address of the Stride Outpost precompile contract.
-func (Precompile) Address() common.Address {
-	return common.HexToAddress("0x0000000000000000000000000000000000000900")
 }
 
 // IsStateful returns true since the precompile contract has access to the

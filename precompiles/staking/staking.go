@@ -59,6 +59,7 @@ func NewPrecompile(
 			KvGasConfig:          storetypes.KVGasConfig(),
 			TransientKVGasConfig: storetypes.TransientGasConfig(),
 			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
+			Addr:                 common.HexToAddress(PrecompileAddress),
 		},
 		stakingKeeper: stakingKeeper,
 	}, nil
@@ -80,12 +81,6 @@ func (p Precompile) RequiredGas(input []byte) uint64 {
 	}
 
 	return p.Precompile.RequiredGas(input, p.IsTransaction(method.Name))
-}
-
-// Address defines the address of the staking compile contract.
-// address: 0x0000000000000000000000000000000000000800
-func (Precompile) Address() common.Address {
-	return common.HexToAddress(PrecompileAddress)
 }
 
 // Run executes the precompiled contract staking methods defined in the ABI.

@@ -29,6 +29,11 @@ var _ vm.PrecompiledContract = &Precompile{}
 //go:embed abi.json
 var f embed.FS
 
+const (
+	// PrecompileAddress defines the address of the vesting precompile contract.
+	PrecompileAddress = "0x0000000000000000000000000000000000000803"
+)
+
 // Precompile defines the precompiled contract for staking.
 type Precompile struct {
 	cmn.Precompile
@@ -76,18 +81,13 @@ func NewPrecompile(
 			KvGasConfig:          storetypes.KVGasConfig(),
 			TransientKVGasConfig: storetypes.TransientGasConfig(),
 			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
+			Addr:                 common.HexToAddress(PrecompileAddress),
 		},
 		vestingKeeper: vestingKeeper,
 	}, nil
 }
 
-// Address defines the address of the staking compile contract.
-// address: 0x0000000000000000000000000000000000000803
-func (Precompile) Address() common.Address {
-	return common.HexToAddress("0x0000000000000000000000000000000000000803")
-}
-
-// Run executes the precompiled contract staking methods defined in the ABI.
+// Run executes the precompiled contract vesting methods defined in the ABI.
 func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz []byte, err error) {
 	ctx, stateDB, snapshot, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
 	if err != nil {

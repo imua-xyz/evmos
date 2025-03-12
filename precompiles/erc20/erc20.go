@@ -10,7 +10,6 @@ import (
 	cmn "github.com/evmos/evmos/v16/precompiles/common"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -72,6 +71,7 @@ func NewPrecompile(
 			ApprovalExpiration:   cmn.DefaultExpirationDuration,
 			KvGasConfig:          sdk.GasConfig{},
 			TransientKVGasConfig: sdk.GasConfig{},
+			Addr:                 tokenPair.GetERC20Contract(),
 		},
 		tokenPair:      tokenPair,
 		bankKeeper:     bankKeeper,
@@ -79,12 +79,7 @@ func NewPrecompile(
 	}, nil
 }
 
-// Address defines the address of the ERC-20 precompile contract.
-func (p Precompile) Address() common.Address {
-	return p.tokenPair.GetERC20Contract()
-}
-
-// RequiredGas calculates the contract gas used for the
+// RequiredGas calculates the contract gas used for the ERC-20 precompile.
 func (p Precompile) RequiredGas(input []byte) uint64 {
 	// Validate input length
 	if len(input) < 4 {

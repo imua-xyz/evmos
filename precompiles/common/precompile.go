@@ -23,7 +23,9 @@ type Precompile struct {
 	ApprovalExpiration   time.Duration
 	KvGasConfig          storetypes.GasConfig
 	TransientKVGasConfig storetypes.GasConfig
-	address              common.Address
+	// Addr is the address of the precompile
+	// we use Addr not Address since Address is the function name
+	Addr common.Address
 }
 
 type snapshot struct {
@@ -35,6 +37,11 @@ type snapshot struct {
 // It uses the method ID to determine if the input is a transaction or a query and
 // uses the Cosmos SDK gas config flat cost and the flat per byte cost * len(argBz) to calculate the gas.
 func (p Precompile) RequiredGas(input []byte, isTransaction bool) uint64 {
+	if len(input) < 4 {
+		// Avoid panic when input is less than 4 bytes
+		return 0
+	}
+
 	argsBz := input[4:]
 
 	if isTransaction {
@@ -206,9 +213,9 @@ func (p Precompile) AddJournalEntries(stateDB *statedb.StateDB, s snapshot) erro
 }
 
 func (p Precompile) Address() common.Address {
-	return p.address
+	return p.Addr
 }
 
 func (p *Precompile) SetAddress(addr common.Address) {
-	p.address = addr
+	p.Addr = addr
 }

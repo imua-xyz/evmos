@@ -61,16 +61,11 @@ func NewPrecompile(
 			ABI:                  newABI,
 			KvGasConfig:          storetypes.GasConfig{},
 			TransientKVGasConfig: storetypes.GasConfig{},
+			Addr:                 common.HexToAddress(PrecompileAddress),
 		},
 		bankKeeper:  bankKeeper,
 		erc20Keeper: erc20Keeper,
 	}, nil
-}
-
-// Address defines the address of the bank compile contract.
-// address: 0x0000000000000000000000000000000000000804
-func (Precompile) Address() common.Address {
-	return common.HexToAddress(PrecompileAddress)
 }
 
 // RequiredGas calculates the precompiled contract's base gas rate.
@@ -104,7 +99,7 @@ func (p Precompile) RequiredGas(input []byte) uint64 {
 
 // Run executes the precompiled contract bank query methods defined in the ABI.
 func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz []byte, err error) {
-	ctx, _, _, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
+	ctx, stateDB, snapshot, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +130,12 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 		return nil, vm.ErrOutOfGas
 	}
 
-	// fully read-only precompile, so no need to add journal entries
+	if p.IsTransaction(method.Name) {
+		// Add journal entries for the precompile if it is a transaction
+		if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
+			return nil, err
+		}
+	}
 
 	return bz, nil
 }

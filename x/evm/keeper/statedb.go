@@ -158,6 +158,12 @@ func (k *Keeper) SetState(ctx sdk.Context, addr common.Address, key common.Hash,
 	)
 }
 
+// DeleteState deletes the entry for the given key in the contract storage
+// at the defined contract address.
+func (k *Keeper) DeleteState(ctx sdk.Context, addr common.Address, key common.Hash) {
+	k.SetState(ctx, addr, key, nil)
+}
+
 // SetCode set contract code, delete if code is empty.
 func (k *Keeper) SetCode(ctx sdk.Context, codeHash, code []byte) {
 	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.KeyPrefixCode)
@@ -174,6 +180,12 @@ func (k *Keeper) SetCode(ctx sdk.Context, codeHash, code []byte) {
 		fmt.Sprintf("code %s", action),
 		"code-hash", common.BytesToHash(codeHash).Hex(),
 	)
+}
+
+// DeleteCode deletes the contract code for the given code hash bytes in
+// the corresponding store.
+func (k *Keeper) DeleteCode(ctx sdk.Context, codeHash []byte) {
+	k.SetCode(ctx, codeHash, nil)
 }
 
 // DeleteAccount handles contract's suicide call:

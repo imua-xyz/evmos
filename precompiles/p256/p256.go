@@ -81,6 +81,8 @@ func (p *Precompile) Run(_ *vm.EVM, contract *vm.Contract, _ bool) (bz []byte, e
 		return common.LeftPadBytes(common.Big1.Bytes(), 32), nil
 	}
 
+	// always a read-only precompile, so no need to add journal entries
+
 	// Signature is invalid
 	return nil, nil
 }

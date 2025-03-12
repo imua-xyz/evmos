@@ -10,6 +10,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/evmos/evmos/v16/x/evm/statedb"
 )
@@ -22,6 +23,12 @@ type Precompile struct {
 	ApprovalExpiration   time.Duration
 	KvGasConfig          storetypes.GasConfig
 	TransientKVGasConfig storetypes.GasConfig
+	address              common.Address
+}
+
+type snapshot struct {
+	MultiStore storetypes.CacheMultiStore
+	Events     sdk.Events
 }
 
 // RequiredGas calculates the base minimum required gas for a transaction or a query.
@@ -44,12 +51,27 @@ func (p Precompile) RunSetup(
 	contract *vm.Contract,
 	readOnly bool,
 	isTransaction func(name string) bool,
-) (ctx sdk.Context, stateDB *statedb.StateDB, method *abi.Method, gasConfig sdk.Gas, args []interface{}, err error) {
+) (ctx sdk.Context, stateDB *statedb.StateDB, s snapshot, method *abi.Method, gasConfig sdk.Gas, args []interface{}, err error) {
 	stateDB, ok := evm.StateDB.(*statedb.StateDB)
 	if !ok {
-		return sdk.Context{}, nil, nil, uint64(0), nil, fmt.Errorf(ErrNotRunInEvm)
+		return sdk.Context{}, nil, s, nil, uint64(0), nil, fmt.Errorf(ErrNotRunInEvm)
 	}
-	ctx = stateDB.GetContext()
+	// get the stateDB cache ctx
+	ctx, err = stateDB.GetCacheContext()
+	if err != nil {
+		return sdk.Context{}, nil, s, nil, uint64(0), nil, err
+	}
+
+	// take a snapshot of the current state before any changes
+	// to be able to revert the changes
+	s.MultiStore = stateDB.MultiStoreSnapshot()
+	s.Events = ctx.EventManager().Events()
+
+	// commit the current changes in the cache ctx
+	// to get the updated state for the precompile call
+	if err := stateDB.CommitWithCacheCtx(); err != nil {
+		return sdk.Context{}, nil, s, nil, uint64(0), nil, err
+	}
 
 	// NOTE: This is a special case where the calling transaction does not specify a function name.
 	// In this case we default to a `fallback` or `receive` function on the contract.
@@ -74,12 +96,12 @@ func (p Precompile) RunSetup(
 	}
 
 	if err != nil {
-		return sdk.Context{}, nil, nil, uint64(0), nil, err
+		return sdk.Context{}, nil, s, nil, uint64(0), nil, err
 	}
 
 	// return error if trying to write to state during a read-only call
 	if readOnly && isTransaction(method.Name) {
-		return sdk.Context{}, nil, nil, uint64(0), nil, vm.ErrWriteProtection
+		return sdk.Context{}, nil, s, nil, uint64(0), nil, vm.ErrWriteProtection
 	}
 
 	// if the method type is `function` continue looking for arguments
@@ -87,7 +109,7 @@ func (p Precompile) RunSetup(
 		argsBz := contract.Input[4:]
 		args, err = method.Inputs.Unpack(argsBz)
 		if err != nil {
-			return sdk.Context{}, nil, nil, uint64(0), nil, err
+			return sdk.Context{}, nil, s, nil, uint64(0), nil, err
 		}
 	}
 
@@ -103,7 +125,7 @@ func (p Precompile) RunSetup(
 	// we need to consume the gas that was already used by the EVM
 	ctx.GasMeter().ConsumeGas(initialGas, "creating a new gas meter")
 
-	return ctx, stateDB, method, initialGas, args, nil
+	return ctx, stateDB, s, method, initialGas, args, nil
 }
 
 // HandleGasError handles the out of gas panic by resetting the gas meter and returning an error.
@@ -171,4 +193,22 @@ func (p Precompile) standardCallData(contract *vm.Contract) (method *abi.Method,
 	}
 
 	return method, nil
+}
+
+// AddJournalEntries adds the balanceChange (if corresponds)
+// and precompileCall entries on the stateDB journal
+// This allows to revert the call changes within an evm tx
+func (p Precompile) AddJournalEntries(stateDB *statedb.StateDB, s snapshot) error {
+	if err := stateDB.AddPrecompileFn(p.Address(), s.MultiStore, s.Events); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p Precompile) Address() common.Address {
+	return p.address
+}
+
+func (p *Precompile) SetAddress(addr common.Address) {
+	p.address = addr
 }

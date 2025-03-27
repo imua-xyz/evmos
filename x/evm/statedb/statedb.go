@@ -527,12 +527,19 @@ func (s *StateDB) commitWithCtx(ctx sdk.Context) error {
 			}
 
 			for _, key := range obj.dirtyStorage.SortedKeys() {
-				valueBytes := obj.dirtyStorage[key].Bytes()
+				dirtyValue := obj.dirtyStorage[key]
+				originValue := obj.originStorage[key]
+				transientValue, ok := obj.transientStorage[key]
+				if (ok && transientValue == dirtyValue) || (!ok && dirtyValue == originValue) {
+					continue
+				}
+				valueBytes := dirtyValue.Bytes()
 				if len(valueBytes) == 0 {
 					s.keeper.DeleteState(ctx, obj.Address(), key)
 				} else {
 					s.keeper.SetState(ctx, obj.Address(), key, valueBytes)
 				}
+				obj.transientStorage[key] = dirtyValue
 			}
 		}
 	}

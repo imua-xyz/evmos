@@ -485,8 +485,6 @@ func (s *StateDB) RevertToSnapshot(revid int) {
 	// Replay the journal to undo changes and remove invalidated snapshots
 	s.journal.Revert(s, snapshot)
 	s.validRevisions = s.validRevisions[:idx]
-	// If there is a revert, the write cache is invalidated.
-	s.cache()
 }
 
 // Commit writes the dirty states to keeper

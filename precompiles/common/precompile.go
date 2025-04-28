@@ -58,19 +58,19 @@ func (p Precompile) RunSetup(
 	if !ok {
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, fmt.Errorf(ErrNotRunInEvm)
 	}
-	// get the stateDB cache ctx
+	// operate on the cached context. the original
+	// context is never touched by precompile calls.
 	ctx, err = stateDB.GetCacheContext()
 	if err != nil {
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
 
-	// take a snapshot of the current state before any changes
-	// to be able to revert the changes
+	// take a snapshot of the current state before any changes.
 	multiStore := stateDB.MultiStoreSnapshot()
 	events := ctx.EventManager().Events()
 
-	// commit the current changes in the cache ctx
-	// to get the updated state for the precompile call
+	// dump every in-memory stateDB change to the in-memory cached context.
+	// note that no disk commitment happens here.
 	if err := stateDB.CommitWithCacheCtx(); err != nil {
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
@@ -134,7 +134,7 @@ func (p Precompile) RunSetup(
 		if err := stateDB.AddPrecompileFn(p.Address(), multiStore, events); err != nil {
 			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 		}
-		// native balance changes should be added in Run.
+		// native balance changes should be added in Run by the precompile.
 	}
 
 	// return the error (set by HandleGasError) or nil

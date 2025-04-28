@@ -56,12 +56,12 @@ func (p Precompile) RunSetup(
 ) (ctx sdk.Context, stateDB *statedb.StateDB, method *abi.Method, gasConfig sdk.Gas, args []interface{}, err error) {
 	stateDB, ok := evm.StateDB.(*statedb.StateDB)
 	if !ok {
-		return sdk.Context{}, nil, nil, uint64(0), nil, fmt.Errorf(ErrNotRunInEvm)
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, fmt.Errorf(ErrNotRunInEvm)
 	}
 	// get the stateDB cache ctx
 	ctx, err = stateDB.GetCacheContext()
 	if err != nil {
-		return sdk.Context{}, nil, nil, uint64(0), nil, err
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
 
 	// take a snapshot of the current state before any changes
@@ -72,7 +72,7 @@ func (p Precompile) RunSetup(
 	// commit the current changes in the cache ctx
 	// to get the updated state for the precompile call
 	if err := stateDB.CommitWithCacheCtx(); err != nil {
-		return sdk.Context{}, nil, nil, uint64(0), nil, err
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
 
 	// NOTE: This is a special case where the calling transaction does not specify a function name.
@@ -98,12 +98,12 @@ func (p Precompile) RunSetup(
 	}
 
 	if err != nil {
-		return sdk.Context{}, nil, nil, uint64(0), nil, err
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
 
 	// return error if trying to write to state during a read-only call
 	if readOnly && isTransaction(method.Name) {
-		return sdk.Context{}, nil, nil, uint64(0), nil, vm.ErrWriteProtection
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, vm.ErrWriteProtection
 	}
 
 	// if the method type is `function` continue looking for arguments
@@ -111,14 +111,13 @@ func (p Precompile) RunSetup(
 		argsBz := contract.Input[4:]
 		args, err = method.Inputs.Unpack(argsBz)
 		if err != nil {
-			return sdk.Context{}, nil, nil, uint64(0), nil, err
+			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 		}
 	}
 
 	initialGas := ctx.GasMeter().GasConsumed()
 
-	// explicitly assign nil to err to avoid superfluous panic
-	err = nil
+	// if we are here, error is nil.
 	defer HandleGasError(ctx, contract, initialGas, &err)()
 
 	// set the default SDK gas configuration to track gas usage
@@ -133,16 +132,16 @@ func (p Precompile) RunSetup(
 	// so that any errors during said execution are reverted correctly
 	if isTransaction(method.Name) {
 		if err := stateDB.AddPrecompileFn(p.Address(), multiStore, events); err != nil {
-			return sdk.Context{}, nil, nil, uint64(0), nil, err
+			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 		}
 		// native balance changes should be added in Run.
 	}
 
 	// return the error (set by HandleGasError) or nil
 	if err != nil {
-		return sdk.Context{}, nil, nil, uint64(0), nil, err
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
-	return ctx, stateDB, method, initialGas, args, nil
+	return ctx, stateDB, method, sdk.Gas(initialGas), args, nil
 }
 
 // HandleGasError handles the out of gas panic by resetting the gas meter and returning an error.

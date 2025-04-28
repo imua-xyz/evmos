@@ -30,8 +30,8 @@ func (suite *KeeperTestSuite) TestWithChainID() {
 			true,
 		},
 		{
-			"fail - other chainID",
-			"chain_7701-1",
+			"fail - large chainID",
+			"chainchainchainchainchainchainchainchainchainchainchainchain_7701-1",
 			0,
 			true,
 		},

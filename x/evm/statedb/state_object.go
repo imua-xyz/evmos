@@ -79,12 +79,11 @@ func newObject(db *StateDB, address common.Address, account Account) *stateObjec
 		account.CodeHash = emptyCodeHash
 	}
 	return &stateObject{
-		db:               db,
-		address:          address,
-		account:          account,
-		originStorage:    make(Storage),
-		dirtyStorage:     make(Storage),
-		transientStorage: make(Storage),
+		db:            db,
+		address:       address,
+		account:       account,
+		originStorage: make(Storage),
+		dirtyStorage:  make(Storage),
 	}
 }
 

@@ -485,8 +485,6 @@ func (s *StateDB) RevertToSnapshot(revid int) {
 	// Replay the journal to undo changes and remove invalidated snapshots
 	s.journal.Revert(s, snapshot)
 	s.validRevisions = s.validRevisions[:idx]
-	// If there is a revert, the write cache is invalidated.
-	s.cache()
 }
 
 // Commit writes the dirty states to keeper
@@ -517,12 +515,8 @@ func (s *StateDB) commitWithCtx(ctx sdk.Context) error {
 				return errorsmod.Wrapf(err, "failed to delete account %s", obj.Address())
 			}
 		} else {
-			if obj.code != nil && obj.dirtyCode {
-				if len(obj.code) == 0 {
-					s.keeper.DeleteCode(ctx, obj.CodeHash())
-				} else {
-					s.keeper.SetCode(ctx, obj.CodeHash(), obj.code)
-				}
+			if obj.dirtyCode {
+				s.keeper.SetCode(ctx, obj.CodeHash(), obj.code)
 			}
 			if err := s.keeper.SetAccount(ctx, obj.Address(), obj.account); err != nil {
 				return errorsmod.Wrap(err, "failed to set account")
@@ -535,12 +529,7 @@ func (s *StateDB) commitWithCtx(ctx sdk.Context) error {
 				if (ok && transientValue == dirtyValue) || (!ok && dirtyValue == originValue) {
 					continue
 				}
-				valueBytes := dirtyValue.Bytes()
-				if len(valueBytes) == 0 {
-					s.keeper.DeleteState(ctx, obj.Address(), key)
-				} else {
-					s.keeper.SetState(ctx, obj.Address(), key, valueBytes)
-				}
+				s.keeper.SetState(ctx, obj.Address(), key, dirtyValue.Bytes())
 				obj.transientStorage[key] = dirtyValue
 			}
 		}

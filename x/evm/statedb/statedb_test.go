@@ -201,7 +201,9 @@ func (suite *StateDBTestSuite) TestState() {
 		{"noop state change", func(db *statedb.StateDB) {
 			db.SetState(address, key1, value1)
 			db.SetState(address, key1, common.Hash{})
-		}, statedb.Storage{}},
+		}, statedb.Storage{
+			key1: common.Hash{},
+		}},
 		{"set state", func(db *statedb.StateDB) {
 			// check empty initial state
 			suite.Require().Equal(common.Hash{}, db.GetState(address, key1))

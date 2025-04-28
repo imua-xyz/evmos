@@ -505,8 +505,7 @@ func (s *StateDB) CommitWithCacheCtx() error {
 	return s.commitWithCtx(s.cacheCtx)
 }
 
-// commitWithCtx writes the dirty states to keeper
-// using the provided context
+// commitWithCtx writes the dirty states to keeper using the provided context.
 func (s *StateDB) commitWithCtx(ctx sdk.Context) error {
 	for _, addr := range s.journal.sortedDirties() {
 		obj := s.stateObjects[addr]
@@ -524,13 +523,11 @@ func (s *StateDB) commitWithCtx(ctx sdk.Context) error {
 
 			for _, key := range obj.dirtyStorage.SortedKeys() {
 				dirtyValue := obj.dirtyStorage[key]
-				originValue := obj.originStorage[key]
-				transientValue, ok := obj.transientStorage[key]
-				if (ok && transientValue == dirtyValue) || (!ok && dirtyValue == originValue) {
-					continue
-				}
+				// GHSA-68fc-7mhg-6f6c
+				// we do not check against originStorage or transientStorage
+				// to avoid even the remotest possibility of not setting the
+				// state when it should have been set.
 				s.keeper.SetState(ctx, obj.Address(), key, dirtyValue.Bytes())
-				obj.transientStorage[key] = dirtyValue
 			}
 		}
 	}

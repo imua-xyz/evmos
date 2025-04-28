@@ -165,8 +165,7 @@ func (pc precompileCallChange) Revert(s *StateDB) {
 	// state stored in the snapshot
 	s.cacheCtx = s.cacheCtx.WithMultiStore(pc.multiStore)
 	s.writeCache = func() {
-		// rollback the events to the ones snapshot
-		// on the snapshot
+		// rollback the events to before the precompile call
 		s.ctx.EventManager().EmitEvents(pc.events)
 		pc.multiStore.Write()
 	}

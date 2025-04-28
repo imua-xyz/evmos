@@ -28,11 +28,6 @@ type Precompile struct {
 	Addr common.Address
 }
 
-type snapshot struct {
-	MultiStore storetypes.CacheMultiStore
-	Events     sdk.Events
-}
-
 // RequiredGas calculates the base minimum required gas for a transaction or a query.
 // It uses the method ID to determine if the input is a transaction or a query and
 // uses the Cosmos SDK gas config flat cost and the flat per byte cost * len(argBz) to calculate the gas.
@@ -71,9 +66,8 @@ func (p Precompile) RunSetup(
 
 	// take a snapshot of the current state before any changes
 	// to be able to revert the changes
-	s := snapshot{}
-	s.MultiStore = stateDB.MultiStoreSnapshot()
-	s.Events = ctx.EventManager().Events()
+	multiStore := stateDB.MultiStoreSnapshot()
+	events := ctx.EventManager().Events()
 
 	// commit the current changes in the cache ctx
 	// to get the updated state for the precompile call
@@ -136,16 +130,12 @@ func (p Precompile) RunSetup(
 	ctx.GasMeter().ConsumeGas(initialGas, "creating a new gas meter")
 
 	// add a snapshot of the current state before executing the precompile
-	// so that any out-of-gas errors during said execution are reverted correctly
+	// so that any errors during said execution are reverted correctly
 	if isTransaction(method.Name) {
-		if err := p.AddPrecompileSnapshot(stateDB, s); err != nil {
-			// if we have exceeded the limit of precompile calls, it will add the entry to the
-			// journal and return an error. then, we will revert that latest entry and hence
-			// the impact of this precompile call will be reverted.
-			// the added advantage of doing this here is that we do not waste resources
-			// to execute a precompile that will be reverted anyway.
+		if err := stateDB.AddPrecompileFn(p.Address(), multiStore, events); err != nil {
 			return sdk.Context{}, nil, nil, uint64(0), nil, err
 		}
+		// native balance changes should be added in Run.
 	}
 
 	// return the error (set by HandleGasError) or nil
@@ -220,18 +210,6 @@ func (p Precompile) standardCallData(contract *vm.Contract) (method *abi.Method,
 	}
 
 	return method, nil
-}
-
-// AddPrecompileSnapshot adds a snapshot of the current state to the journal.
-// It is called before executing a precompile to allow reverting the changes
-// caused by the precompile call.
-// NOTE: This does not include+ native balance changes and those must be added
-// separately AFTER the precompile call.
-func (p Precompile) AddPrecompileSnapshot(stateDB *statedb.StateDB, s snapshot) error {
-	if err := stateDB.AddPrecompileFn(p.Address(), s.MultiStore, s.Events); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (p Precompile) Address() common.Address {

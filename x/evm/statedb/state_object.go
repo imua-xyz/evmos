@@ -63,10 +63,6 @@ type stateObject struct {
 	originStorage Storage
 	dirtyStorage  Storage
 
-	// transientStorage is an in memory storage of the latest committed entries in the current transaction execution.
-	// It is only used when multiple commits are made within the same transaction execution.
-	transientStorage Storage
-
 	address common.Address
 
 	// flags

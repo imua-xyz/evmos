@@ -69,12 +69,6 @@ func (p Precompile) RunSetup(
 	multiStore := stateDB.MultiStoreSnapshot()
 	events := ctx.EventManager().Events()
 
-	// dump every in-memory stateDB change to the in-memory cached context.
-	// note that no disk commitment happens here.
-	if err := stateDB.CommitWithCacheCtx(); err != nil {
-		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
-	}
-
 	// NOTE: This is a special case where the calling transaction does not specify a function name.
 	// In this case we default to a `fallback` or `receive` function on the contract.
 
@@ -98,12 +92,23 @@ func (p Precompile) RunSetup(
 	}
 
 	if err != nil {
+		// if the method is not found, it will exit here.
+		// hence, isTransaction("unknown") will never be called, and
+		// can safely panic.
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
 
-	// return error if trying to write to state during a read-only call
-	if readOnly && isTransaction(method.Name) {
-		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, vm.ErrWriteProtection
+	if isTransaction(method.Name) {
+		if readOnly {
+			// return error if trying to write to state during a read-only call
+			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, vm.ErrWriteProtection
+		}
+		// add a snapshot of the current state before executing the precompile
+		// so that any errors during said execution are reverted correctly
+		if err := stateDB.AddPrecompileFn(p.Address(), multiStore, events); err != nil {
+			// native balance changes should be added in Run by the precompile.
+			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
+		}
 	}
 
 	// if the method type is `function` continue looking for arguments
@@ -128,19 +133,25 @@ func (p Precompile) RunSetup(
 	// we need to consume the gas that was already used by the EVM
 	ctx.GasMeter().ConsumeGas(initialGas, "creating a new gas meter")
 
-	// add a snapshot of the current state before executing the precompile
-	// so that any errors during said execution are reverted correctly
-	if isTransaction(method.Name) {
-		if err := stateDB.AddPrecompileFn(p.Address(), multiStore, events); err != nil {
-			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
-		}
-		// native balance changes should be added in Run by the precompile.
-	}
-
 	// return the error (set by HandleGasError) or nil
 	if err != nil {
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
+
+	// dump every in-memory stateDB change to the in-memory cached context.
+	// note that no disk commitment happens here.
+	// previously, this was done at the top of this function and not here at
+	// the bottom. that caused issues in case something else errored out
+	// after the `CommitWithCacheCtx` call.
+	// for example, if the precompile was called with an unknown method ID,
+	// and stateDB.CommitWithCacheCtx() was called first, the cached context
+	// would store an incorrect state without a corresponding journal entry.
+	// in other words, this below function dumps the changes into `writeCache`,
+	// which would override the disk-commitment with incorrect values.
+	if err := stateDB.CommitWithCacheCtx(); err != nil {
+		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
+	}
+
 	return ctx, stateDB, method, sdk.Gas(initialGas), args, nil
 }
 

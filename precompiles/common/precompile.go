@@ -98,7 +98,13 @@ func (p Precompile) RunSetup(
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 	}
 
-	if isTransaction(method.Name) {
+	// check if the method is a transaction
+	// TODO: `method.Name` must be populated; `fallback` and `receive`
+	// do not have names so it isn't reliable for them. if such methods
+	// are added to precompiles, we should pass the method type in addition
+	// to the name.
+	isTx := isTransaction(method.Name)
+	if isTx {
 		if readOnly {
 			// return error if trying to write to state during a read-only call
 			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, vm.ErrWriteProtection
@@ -148,8 +154,11 @@ func (p Precompile) RunSetup(
 	// would store an incorrect state without a corresponding journal entry.
 	// in other words, this below function dumps the changes into `writeCache`,
 	// which would override the disk-commitment with incorrect values.
-	if err := stateDB.CommitWithCacheCtx(); err != nil {
-		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
+	if isTx {
+		// only commit when we aren't read-only
+		if err := stateDB.CommitWithCacheCtx(); err != nil {
+			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
+		}
 	}
 
 	return ctx, stateDB, method, sdk.Gas(initialGas), args, nil

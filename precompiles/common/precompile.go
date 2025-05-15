@@ -101,8 +101,8 @@ func (p Precompile) RunSetup(
 	// check if the method is a transaction
 	// TODO: `method.Name` must be populated; `fallback` and `receive`
 	// do not have names so it isn't reliable for them. if such methods
-	// are added to precompiles, we should pass the method type in addition
-	// to the name.
+	// are added to precompiles, we should change the signature of
+	// isTransaction to accept a method type in addition to a name.
 	isTx := isTransaction(method.Name)
 	if isTx {
 		if readOnly {
@@ -113,6 +113,16 @@ func (p Precompile) RunSetup(
 		// so that any errors during said execution are reverted correctly
 		if err := stateDB.AddPrecompileFn(p.Address(), multiStore, events); err != nil {
 			// native balance changes should be added in Run by the precompile.
+			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
+		}
+		// dump every in-memory stateDB change to the in-memory cached context.
+		// note that no disk commitment happens here.
+		// this can be performed anytime after AddPrecompileFn has executed successfully
+		// to ensure atomicity of the journal entry.
+		// calling this first, and adding the journal entry later is not a good idea
+		// because any errors between the 2 calls would produce a committed cache ctx
+		// without a corresponding journal entry, thus preventing successful reverts.
+		if err := stateDB.CommitWithCacheCtx(); err != nil {
 			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
 		}
 	}
@@ -139,26 +149,11 @@ func (p Precompile) RunSetup(
 	// we need to consume the gas that was already used by the EVM
 	ctx.GasMeter().ConsumeGas(initialGas, "creating a new gas meter")
 
-	// return the error (set by HandleGasError) or nil
+	// HandleGasError accepts a pointer to an error, and if there is a panic,
+	// it recovers the panic and sets the error. Hence, the error may have
+	// changed since the last such check. Check it again.
 	if err != nil {
 		return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
-	}
-
-	// dump every in-memory stateDB change to the in-memory cached context.
-	// note that no disk commitment happens here.
-	// previously, this was done at the top of this function and not here at
-	// the bottom. that caused issues in case something else errored out
-	// after the `CommitWithCacheCtx` call.
-	// for example, if the precompile was called with an unknown method ID,
-	// and stateDB.CommitWithCacheCtx() was called first, the cached context
-	// would store an incorrect state without a corresponding journal entry.
-	// in other words, this below function dumps the changes into `writeCache`,
-	// which would override the disk-commitment with incorrect values.
-	if isTx {
-		// only commit when we aren't read-only
-		if err := stateDB.CommitWithCacheCtx(); err != nil {
-			return sdk.Context{}, nil, nil, sdk.Gas(0), nil, err
-		}
 	}
 
 	return ctx, stateDB, method, sdk.Gas(initialGas), args, nil
